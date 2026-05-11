@@ -1,0 +1,18 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+
+# Temp files
+*.tmp
+*.log
+
+# Node modules (αν έχεις)
+node_modules/
+
+# Sound files (προαιρετικά - αν θέλεις να τα ανεβάσεις)
+# assets/sounds/*.mp3
+# assets/sounds/*.wav

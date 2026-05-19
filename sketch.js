@@ -1,5 +1,5 @@
 // =====================================
-// ECTS RUNNER - SKETCH.JS (LEVEL SELECT ΜΕ NEON ΚΕΙΜΕΝΑ ΚΑΙ 3D ΠΛΑΙΣΙΑ)
+// ECTS RUNNER - SKETCH.JS (ΤΕΛΙΚΟ)
 // =====================================
 
 let gravity = 0.8;
@@ -17,8 +17,14 @@ let jumpsLeft = 2;
 let shake = 0;
 let enemiesKilled = 0;
 
-// States: 'menu', 'levelSelect', 'game', 'pauseMenu'
-let gameState = "menu";
+// States: 'intro', 'menu', 'levelSelect', 'game', 'pauseMenu', 'rules'
+let gameState = "intro";
+
+// Intro video
+let introVideo;
+
+// Unlocked levels
+let unlockedLevels = [true, false, false, false, false, false, false, false];
 
 // In-game menu
 let pauseMenuActive = false;
@@ -28,17 +34,25 @@ let pauseOptions = ["▶ RESUME", "🔄 RESTART", "🏠 GO TO MENU"];
 // Εφέ μετάβασης (FADE)
 let fadeAlpha = 0;
 let fadeTransition = false;
+let fadeCallback = null;
 
-// Typing effect
-let menuTexts = [
-  "Survive in the University & Get Your Degree!",
-  "Collect 100 ECTS per semester",
-  "🔵🟢🟡 coloured balls → +5 ECTS",
-  "⚔️ Every 2 enemies 🔴 → +1 life  | 😈 unkilled enemy",
-  "← → : Move | SPACE : Jump (x2) | SHIFT : Dash | M : Sound"
-];
-let typedTexts = ["", "", "", "", ""];
-let textIndexes = [0, 0, 0, 0, 0];
+// Rules panel animation
+let rulesYOffset = 0;
+let rulesAnimDir = 1;
+
+// Title animation (wobble)
+let titleAngle = 0;
+let titleWobble = 0;
+
+// Typing effect for menu
+let fullTitle = "ECTS RUNNER";
+let typedTitle = "";
+let titleIndex = 0;
+let typingActive = true;
+
+let subtitle = "Survive in the University & Get Your Degree!";
+let typedSubtitle = "";
+let subtitleIndex = 0;
 
 let platforms = [];
 let movingPlatforms = [];
@@ -89,7 +103,11 @@ let themes = [
 ];
 
 function preload() {
-  bgImages.first = loadImage("assets/images/first.png");
+  introVideo = createVideo("assets/videos/intro.mp4");
+  introVideo.hide();
+  introVideo.volume(0.7);
+  
+  bgImages.screen = loadImage("assets/images/screen.png");
   bgImages.spring = loadImage("assets/images/spring.png");
   bgImages.summer = loadImage("assets/images/summer.png");
   bgImages.sunset = loadImage("assets/images/sunset.png");
@@ -152,46 +170,65 @@ function setup() {
   for (let i = 0; i < 200; i++) rain.push({ x: random(width), y: random(height) });
   generateChunk(0);
   
-  setTimeout(typeNextLetter, 50);
+  introVideo.loop();
+  introVideo.volume(0.5);
+  
+  setInterval(() => {
+    if (typingActive && titleIndex < fullTitle.length) {
+      typedTitle += fullTitle[titleIndex];
+      titleIndex++;
+    }
+  }, 100);
+  
+  setInterval(() => {
+    if (typingActive && subtitleIndex < subtitle.length) {
+      typedSubtitle += subtitle[subtitleIndex];
+      subtitleIndex++;
+    }
+  }, 50);
+  
+  setInterval(() => {
+    rulesYOffset += 2 * rulesAnimDir;
+    if (rulesYOffset > 8 || rulesYOffset < -8) rulesAnimDir *= -1;
+  }, 100);
+  
+  setInterval(() => {
+    titleAngle += 0.05;
+    titleWobble = sin(titleAngle) * 3;
+  }, 50);
 }
 
-function typeNextLetter() {
-  let anyLeft = false;
-  for (let i = 0; i < menuTexts.length; i++) {
-    if (textIndexes[i] < menuTexts[i].length) {
-      typedTexts[i] += menuTexts[i][textIndexes[i]];
-      textIndexes[i]++;
-      anyLeft = true;
-      setTimeout(typeNextLetter, 30);
-      break;
-    }
+function startFade(mode, callback) {
+  if (fadeTransition) return;
+  fadeTransition = true;
+  fadeCallback = callback;
+  
+  let step = 5;
+  let intervalTime = 10;
+  
+  if (mode === "out") {
+    fadeAlpha = 0;
+    let fadeInterval = setInterval(() => {
+      fadeAlpha += step;
+      if (fadeAlpha >= 255) {
+        clearInterval(fadeInterval);
+        fadeTransition = false;
+        if (fadeCallback) fadeCallback();
+        fadeCallback = null;
+      }
+    }, intervalTime);
+  } else {
+    fadeAlpha = 255;
+    let fadeInterval = setInterval(() => {
+      fadeAlpha -= step;
+      if (fadeAlpha <= 0) {
+        clearInterval(fadeInterval);
+        fadeTransition = false;
+        if (fadeCallback) fadeCallback();
+        fadeCallback = null;
+      }
+    }, intervalTime);
   }
-}
-
-function fadeOut(callback) {
-  fadeTransition = true;
-  fadeAlpha = 0;
-  let fadeInterval = setInterval(() => {
-    fadeAlpha += 15;
-    if (fadeAlpha >= 255) {
-      clearInterval(fadeInterval);
-      fadeTransition = false;
-      if (callback) callback();
-    }
-  }, 16);
-}
-
-function fadeIn(callback) {
-  fadeTransition = true;
-  fadeAlpha = 255;
-  let fadeInterval = setInterval(() => {
-    fadeAlpha -= 15;
-    if (fadeAlpha <= 0) {
-      clearInterval(fadeInterval);
-      fadeTransition = false;
-      if (callback) callback();
-    }
-  }, 16);
 }
 
 function playLevelMusic() {
@@ -205,7 +242,13 @@ function playLevelMusic() {
   newSound.loop();
 }
 
-function stopMusic() { if (currentSound && currentSound.isPlaying()) currentSound.stop(); }
+function stopMusic() { 
+  if (currentSound && currentSound.isPlaying()) {
+    currentSound.stop();
+    currentSound = null;
+  }
+}
+
 function setSoundVolume(vol) { soundVol = constrain(vol, 0, 1); if (currentSound) currentSound.setVolume(soundVol); }
 function playCoinSound() { if (soundEnabled && coinSound) coinSound.play(); }
 function playEnemyCrashSound() { if (soundEnabled && enemyCrashSound) enemyCrashSound.play(); }
@@ -235,179 +278,88 @@ function drawBackground(theme, bgImg) {
   }
 }
 
-function getCurrentTheme() { return themes[(level - 1) % themes.length]; }
-
-// ========== IN-GAME PAUSE MENU ==========
-function drawPauseMenu() {
-  fill(0, 0, 0, 200);
-  rect(0, 0, width, height);
-  
-  let menuW = 400;
-  let menuH = 350;
-  let menuX = width/2 - menuW/2;
-  let menuY = height/2 - menuH/2;
-  
-  fill(30, 30, 50, 240);
-  rect(menuX, menuY, menuW, menuH, 20);
-  
-  fill(255, 220, 100);
-  textSize(36);
-  textAlign(CENTER);
-  text("⏸ GAME PAUSED", width/2, menuY + 60);
-  
-  textSize(20);
-  fill(200, 200, 200);
-  text("Press 1 or ESC to resume", width/2, menuY + 100);
-  
-  for (let i = 0; i < pauseOptions.length; i++) {
-    let optionY = menuY + 160 + i * 55;
-    
-    if (i === pauseSelectedOption) {
-      fill(255, 220, 100);
-      textSize(28);
-    } else {
-      fill(180, 180, 220);
-      textSize(24);
-    }
-    text(pauseOptions[i], width/2, optionY);
+function drawBackgroundScreen() {
+  if (bgImages.screen && bgImages.screen.width > 0) {
+    let scaleW = width / bgImages.screen.width;
+    let scaleH = height / bgImages.screen.height;
+    let scale = max(scaleW, scaleH);
+    let scaledW = bgImages.screen.width * scale;
+    let scaledH = bgImages.screen.height * scale;
+    let x = (width - scaledW) / 2;
+    let y = (height - scaledH) / 2;
+    image(bgImages.screen, x, y, scaledW, scaledH);
+  } else {
+    background(140, 40, 40);
   }
-  
-  textSize(14);
-  fill(150, 150, 180);
-  text("↑ ↓ : Navigate | ENTER : Select", width/2, menuY + menuH - 40);
 }
 
-// ========== LEVEL SELECT MENU (NEON + 3D ΠΛΑΙΣΙΑ) ==========
-function drawLevelSelect() {
-  background(20, 25, 45);
+function getCurrentTheme() { return themes[(level - 1) % themes.length]; }
+
+// ========== INTRO VIDEO SCREEN (ΜΕΤΑΚΙΝΗΜΕΝΟ ΠΙΟ ΚΑΤΩ) ==========
+function drawIntro() {
+  background(0);
   
-  // Διακοσμητικά αστέρια
-  for (let i = 0; i < 100; i++) {
-    fill(255, 255, 255, random(50, 150));
-    noStroke();
-    ellipse(random(width), random(height), random(1, 3));
+  if (introVideo.width > 0) {
+    let videoRatio = introVideo.width / introVideo.height;
+    let canvasRatio = width / height;
+    
+    let videoW, videoH;
+    if (videoRatio > canvasRatio) {
+      videoH = height;
+      videoW = videoH * videoRatio;
+    } else {
+      videoW = width;
+      videoH = videoW / videoRatio;
+    }
+    
+    let videoX = (width - videoW) / 2;
+    let videoY = (height - videoH) / 2 -350 ;
+    
+    image(introVideo, videoX, videoY, videoW, videoH);
   }
+  
+  fill(0, 0, 0, 150);
+  rect(0, 0, width, height);
   
   textAlign(CENTER);
   
-  // Τίτλος με glow effect
-  textSize(52);
-  drawingContext.shadowBlur = 15;
-  drawingContext.shadowColor = "rgba(0, 255, 255, 0.8)";
-  fill(0, 255, 255);
-  text("📚 SELECT YOUR SEMESTER 📚", width/2, 80);
-  drawingContext.shadowBlur = 0;
+  textSize(32);
+  drawingContext.shadowBlur = 12;
+  drawingContext.shadowColor = "rgba(255, 215, 0, 0.8)";
+  fill(255, 215, 0);
+  text("THE STORY BEGINS...", width/2, 80);
+  
+  drawingContext.shadowBlur = 8;
+  drawingContext.shadowColor = "rgba(0,0,0,0.5)";
   
   textSize(20);
-  fill(200, 200, 200);
-  text("Click on a level to start your journey", width/2, 130);
+  fill(255, 255, 220);
   
-  // Μεγαλύτερα κουμπιά - 4x2 grid
-  let buttonWidth = 260;
-  let buttonHeight = 130;
-  let startX = (width - (buttonWidth + 30) * 4) / 2;
-  let startY = 170;
+  let storyText = "Odysseas, Olga, and Stella spend a day at the Athens University of Economics and Business";
+  let storyText2 = "and get the idea to earn a degree. Outside in the courtyard, they devise a plan";
+  let storyText3 = "for hunting ECTS credits with the goal of obtaining the degree while avoiding";
+  let storyText4 = "low grades in exam periods, by collecting high grades and ECTS credits";
+  let storyText5 = "between semesters.";
   
-  for (let i = 0; i < 8; i++) {
-    let row = floor(i / 4);
-    let col = i % 4;
-    let x = startX + col * (buttonWidth + 30);
-    let y = startY + row * (buttonHeight + 35);
-    
-    // ========== NEON ΚΕΙΜΕΝΟ ΠΑΝΩ ΑΠΟ ΤΟ ΠΛΑΙΣΙΟ ==========
-    let neonColor;
-    if (i % 3 === 0) neonColor = color(0, 255, 255);  // Cyan
-    else if (i % 3 === 1) neonColor = color(255, 0, 255);  // Magenta
-    else neonColor = color(0, 255, 0);  // Green
-    
-    textSize(18);
-    drawingContext.shadowBlur = 12;
-    drawingContext.shadowColor = `rgba(${red(neonColor)}, ${green(neonColor)}, ${blue(neonColor)}, 0.8)`;
-    fill(neonColor);
-    text(`Semester ${i+1} - ${themes[i].name}`, x + buttonWidth/2, y - 12);
-    drawingContext.shadowBlur = 0;
-    
-    // ========== ΤΡΙΣΔΙΑΣΤΑΤΟ ΠΛΑΙΣΙΟ ==========
-    // Σκιά
-    fill(0, 0, 0, 120);
-    rect(x + 6, y + 6, buttonWidth, buttonHeight, 12);
-    
-    // Κύρια βάση
-    fill(45, 45, 65);
-    rect(x, y, buttonWidth, buttonHeight, 12);
-    
-    // Εσωτερικό φωτεινό περίγραμμα (3D εφέ)
-    stroke(100, 100, 150);
-    strokeWeight(2);
-    noFill();
-    rect(x + 3, y + 3, buttonWidth - 6, buttonHeight - 6, 10);
-    stroke(200, 200, 255);
-    strokeWeight(1);
-    rect(x + 1, y + 1, buttonWidth - 2, buttonHeight - 2, 12);
-    noStroke();
-    
-    // Εικόνα preview (μεγέθυνση)
-    let previewImg = bgImages[themes[i].bgKey];
-    if (previewImg && previewImg.width > 0) {
-      image(previewImg, x + 15, y + 15, 100, 100);
-    } else {
-      fill(100, 100, 150);
-      ellipse(x + 65, y + 65, 80, 80);
-    }
-    
-    // Neon αριθμός εξαμήνου
-    textSize(36);
-    drawingContext.shadowBlur = 10;
-    drawingContext.shadowColor = `rgba(${red(neonColor)}, ${green(neonColor)}, ${blue(neonColor)}, 0.8)`;
-    fill(neonColor);
-    text(i + 1, x + buttonWidth - 40, y + 80);
-    drawingContext.shadowBlur = 0;
-    
-    // Όνομα εξαμήνου (λευκό)
-    fill(255, 255, 255);
-    textSize(18);
-    text(themes[i].name, x + 140, y + 60);
-    
-    // Μικρή περιγραφή
-    fill(180, 180, 200);
-    textSize(13);
-    text("▶ Click to play", x + 140, y + 90);
-    
-    // Glow effect στο hover
-    let mouseOver = (mouseX > x && mouseX < x + buttonWidth && mouseY > y && mouseY < y + buttonHeight);
-    if (mouseOver) {
-      // Φωτεινό περίγραμμα
-      stroke(neonColor);
-      strokeWeight(3);
-      noFill();
-      rect(x - 2, y - 2, buttonWidth + 4, buttonHeight + 4, 14);
-      noStroke();
-      
-      if (mouseIsPressed) {
-        level = i + 1;
-        fadeOut(() => {
-          gameState = "game";
-          initLevel();
-          fadeIn();
-        });
-      }
-    }
-  }
+  text(storyText, width/2, 180);
+  text(storyText2, width/2, 220);
+  text(storyText3, width/2, 260);
+  text(storyText4, width/2, 300);
+  text(storyText5, width/2, 340);
   
-  // Back button (3D)
-  let backX = width/2 - 120;
-  let backY = height - 70;
+  stroke(255, 215, 0);
+  strokeWeight(2);
+  line(width/2 - 200, 370, width/2 + 200, 370);
+  noStroke();
   
-  fill(0, 0, 0, 100);
-  rect(backX + 5, backY + 5, 240, 50, 10);
-  fill(80, 50, 70);
-  rect(backX, backY, 240, 50, 10);
+  textSize(18);
+  fill(200, 200, 200, 200);
+  text("Press any key to continue", width/2, height - 60);
   
-  fill(200, 170, 150);
-  textSize(24);
-  text("← BACK TO MENU", width/2, backY + 33);
+  drawingContext.shadowBlur = 0;
   
-  if (mouseX > backX && mouseX < backX + 240 && mouseY > backY && mouseY < backY + 50 && mouseIsPressed) {
+  if (introVideo.time() >= introVideo.duration() - 0.1 && introVideo.duration() > 0) {
+    introVideo.stop();
     gameState = "menu";
   }
   
@@ -417,66 +369,340 @@ function drawLevelSelect() {
   }
 }
 
-function drawStartMenu() {
-  if (bgImages.first && bgImages.first.width > 0) {
-    let scaleW = width / bgImages.first.width;
-    let scaleH = height / bgImages.first.height;
-    let scale = min(scaleW, scaleH);
+function drawPauseMenu() {
+  fill(0, 0, 0, 200);
+  rect(0, 0, width, height);
+  
+  let menuW = 400;
+  let menuH = 350;
+  let menuX = width/2 - menuW/2;
+  let menuY = height/2 - menuH/2;
+  
+  fill(100, 25, 25, 240);
+  rect(menuX, menuY, menuW, menuH, 20);
+  
+  fill(200, 160, 120);
+  rect(menuX + 5, menuY + 5, menuW - 10, menuH - 10, 15);
+  
+  fill(255, 220, 150);
+  textSize(36);
+  textAlign(CENTER);
+  text("⏸ GAME PAUSED", width/2, menuY + 60);
+  
+  textSize(20);
+  fill(80, 60, 40);
+  text("Press 1 or ESC to resume", width/2, menuY + 100);
+  
+  for (let i = 0; i < pauseOptions.length; i++) {
+    let optionY = menuY + 160 + i * 55;
     
-    let scaledW = bgImages.first.width * scale;
-    let scaledH = bgImages.first.height * scale;
-    let x = (width - scaledW) / 2;
-    let y = (height - scaledH) / 2;
-    
-    image(bgImages.first, x, y, scaledW, scaledH);
-    
-    fill(255, 255, 255, 80);
+    if (i === pauseSelectedOption) {
+      fill(200, 100, 50);
+      textSize(28);
+    } else {
+      fill(100, 70, 50);
+      textSize(24);
+    }
+    text(pauseOptions[i], width/2, optionY);
+  }
+  
+  textSize(14);
+  fill(100, 80, 60);
+  text("↑ ↓ : Navigate | ENTER : Select", width/2, menuY + menuH - 40);
+}
+
+function drawRulesScreen() {
+  drawBackgroundScreen();
+  
+  fill(0, 0, 0, 180);
+  rect(0, 0, width, height);
+  
+  let rulesW = 650;
+  let rulesH = 520;
+  let rulesX = width/2 - rulesW/2;
+  let rulesY = height/2 - rulesH/2 + rulesYOffset;
+  
+  fill(100, 25, 25, 240);
+  rect(rulesX, rulesY, rulesW, rulesH, 20);
+  
+  fill(220, 180, 140, 230);
+  rect(rulesX + 5, rulesY + 5, rulesW - 10, rulesH - 10, 15);
+  
+  drawingContext.shadowBlur = 15;
+  drawingContext.shadowColor = "rgba(200, 100, 50, 0.5)";
+  
+  fill(150, 60, 40);
+  textSize(40);
+  textAlign(CENTER);
+  text("GAME RULES", width/2, rulesY + 55);
+  
+  drawingContext.shadowBlur = 0;
+  
+  textSize(20);
+  textAlign(LEFT);
+  
+  fill(50, 30, 20);
+  textStyle(BOLD);
+  text("🎓 Collect 100 ECTS per semester to graduate!", rulesX + 30, rulesY + 110);
+  text("💰 Coloured balls (5-10) → +5 ECTS each", rulesX + 30, rulesY + 160);
+  text("⚔️ Every 2 enemies defeated → +1 life", rulesX + 30, rulesY + 210);
+  text("😈 Purple devil (4.9) → UNKILLABLE! Avoid it!", rulesX + 30, rulesY + 260);
+  text("🌋 Lava pools → instant life loss", rulesX + 30, rulesY + 310);
+  text("🚀 SHIFT = Dash (speed boost)", rulesX + 30, rulesY + 360);
+  text("🦘 SPACE = Double jump", rulesX + 30, rulesY + 410);
+  text("🎮 Press 1 or ESC for in-game menu", rulesX + 30, rulesY + 460);
+  textStyle(NORMAL);
+  
+  let backX = width/2 - 80;
+  let backY = rulesY + rulesH - 50;
+  fill(110, 50, 40);
+  rect(backX, backY, 160, 45, 10);
+  fill(255, 220, 180);
+  textSize(22);
+  textAlign(CENTER);
+  text("← BACK", width/2, backY + 32);
+  
+  if (mouseX > backX && mouseX < backX + 160 && mouseY > backY && mouseY < backY + 45 && mouseIsPressed) {
+    startFade("out", () => {
+      gameState = "menu";
+      startFade("in");
+    });
+  }
+  
+  if (fadeTransition || fadeAlpha > 0) {
+    fill(0, 0, 0, fadeAlpha);
     rect(0, 0, width, height);
-    
-    fill(0, 0, 0, 150);
-    rect(0, 0, width, height);
-  } else {
-    background(20, 25, 45);
+  }
+}
+
+function drawLevelSelect() {
+  drawBackgroundScreen();
+  
+  fill(0, 0, 0, 180);
+  rect(0, 0, width, height);
+  
+  for (let i = 0; i < 100; i++) {
+    fill(255, 255, 200, random(30, 100));
+    noStroke();
+    ellipse(random(width), random(height), random(1, 3));
   }
   
   textAlign(CENTER);
   
-  textSize(78);
-  fill(0, 0, 0, 150);
-  text("🎓 ECTS RUNNER 🎓", width/2 + 6, 156);
-  fill(0, 0, 0, 100);
-  text("🎓 ECTS RUNNER 🎓", width/2 - 4, 152);
-  fill(255, 220, 100);
-  text("🎓 ECTS RUNNER 🎓", width/2, 150);
-  
-  textSize(24);
-  fill(255, 255, 200);
-  text(typedTexts[0], width/2, 250);
+  drawingContext.shadowBlur = 15;
+  drawingContext.shadowColor = "rgba(255, 200, 100, 0.8)";
+  fill(255, 220, 150);
+  textSize(52);
+  text("SELECT YOUR SEMESTER", width/2, 80);
+  drawingContext.shadowBlur = 0;
   
   textSize(20);
-  fill(220, 220, 220);
-  text(typedTexts[1], width/2, 310);
-  text(typedTexts[2], width/2, 360);
-  text(typedTexts[3], width/2, 400);
-  text(typedTexts[4], width/2, 440);
+  fill(255, 240, 200);
+  text("Click on a level to start your journey", width/2, 130);
   
-  let btnX = width/2 - 120;
-  let btnY = 510;
-  fill(50, 80, 120);
-  rect(btnX, btnY, 240, 55, 15);
-  fill(255, 220, 100);
-  textSize(26);
-  text("🎮 SELECT SEMESTER 🎮", width/2, btnY + 38);
+  let buttonWidth = 200;
+  let buttonHeight = 140;
+  let spacingX = 50;
+  let spacingY = 40;
+  let startX = (width - (buttonWidth * 4 + spacingX * 3)) / 2;
+  let startY = 180;
   
-  if (mouseX > btnX && mouseX < btnX + 240 && mouseY > btnY && mouseY < btnY + 55 && mouseIsPressed) {
-    gameState = "levelSelect";
+  for (let i = 0; i < 8; i++) {
+    let row = floor(i / 4);
+    let col = i % 4;
+    let x = startX + col * (buttonWidth + spacingX);
+    let y = startY + row * (buttonHeight + spacingY);
+    
+    let isUnlocked = unlockedLevels[i];
+    
+    fill(0, 0, 0, 100);
+    rect(x + 5, y + 5, buttonWidth, buttonHeight, 12);
+    
+    if (!isUnlocked) {
+      fill(70, 50, 50);
+      rect(x, y, buttonWidth, buttonHeight, 12);
+      
+      stroke(100, 80, 70);
+      strokeWeight(2);
+      noFill();
+      rect(x + 3, y + 3, buttonWidth - 6, buttonHeight - 6, 10);
+      stroke(120, 100, 90);
+      strokeWeight(1);
+      rect(x + 1, y + 1, buttonWidth - 2, buttonHeight - 2, 12);
+      noStroke();
+      
+      fill(120, 90, 80);
+      rect(x + 10, y - 5, buttonWidth - 20, 10, 5);
+      
+      let previewImg = bgImages[themes[i].bgKey];
+      if (previewImg && previewImg.width > 0) {
+        tint(100, 100, 100, 200);
+        image(previewImg, x + 15, y + 15, buttonWidth - 30, buttonHeight - 30);
+        noTint();
+      } else {
+        fill(100, 70, 60);
+        ellipse(x + buttonWidth/2, y + buttonHeight/2, 80, 80);
+      }
+      
+      textSize(18);
+      fill(160, 140, 120);
+      drawingContext.shadowBlur = 8;
+      drawingContext.shadowColor = "rgba(0,0,0,0.5)";
+      text(`Semester ${i+1} - ${themes[i].name}`, x + buttonWidth/2, y - 10);
+      drawingContext.shadowBlur = 0;
+    } else {
+      fill(120, 70, 50);
+      rect(x, y, buttonWidth, buttonHeight, 12);
+      
+      stroke(180, 130, 80);
+      strokeWeight(2);
+      noFill();
+      rect(x + 3, y + 3, buttonWidth - 6, buttonHeight - 6, 10);
+      stroke(255, 220, 150);
+      strokeWeight(1);
+      rect(x + 1, y + 1, buttonWidth - 2, buttonHeight - 2, 12);
+      noStroke();
+      
+      fill(160, 110, 70);
+      rect(x + 10, y - 5, buttonWidth - 20, 10, 5);
+      
+      let previewImg = bgImages[themes[i].bgKey];
+      if (previewImg && previewImg.width > 0) {
+        image(previewImg, x + 15, y + 15, buttonWidth - 30, buttonHeight - 30);
+      } else {
+        fill(130, 80, 60);
+        ellipse(x + buttonWidth/2, y + buttonHeight/2, 80, 80);
+      }
+      
+      textSize(18);
+      fill(255, 240, 180);
+      drawingContext.shadowBlur = 8;
+      drawingContext.shadowColor = "rgba(0,0,0,0.5)";
+      text(`Semester ${i+1} - ${themes[i].name}`, x + buttonWidth/2, y - 10);
+      drawingContext.shadowBlur = 0;
+      
+      let mouseOver = (mouseX > x && mouseX < x + buttonWidth && mouseY > y && mouseY < y + buttonHeight);
+      if (mouseOver) {
+        stroke(255, 220, 100);
+        strokeWeight(4);
+        noFill();
+        rect(x - 2, y - 2, buttonWidth + 4, buttonHeight + 4, 14);
+        noStroke();
+        
+        if (mouseIsPressed) {
+          level = i + 1;
+          startFade("out", () => {
+            gameState = "game";
+            initLevel();
+            startFade("in");
+          });
+        }
+      }
+    }
   }
   
-  textSize(20);
-  fill(255, 220, 100);
-  text("⚠️ PRESS ENTER ⚠️", width/2, 590);
+  let backX = width/2 - 100;
+  let backY = height - 80;
+  
+  fill(0, 0, 0, 100);
+  rect(backX + 5, backY + 5, 200, 50, 10);
+  fill(100, 60, 45);
+  rect(backX, backY, 200, 50, 10);
+  
+  fill(255, 220, 180);
+  textSize(22);
+  text("← BACK TO MENU", width/2, backY + 33);
+  
+  if (mouseX > backX && mouseX < backX + 200 && mouseY > backY && mouseY < backY + 50 && mouseIsPressed) {
+    startFade("out", () => {
+      gameState = "menu";
+      stopMusic();
+      startFade("in");
+    });
+  }
+  
+  if (fadeTransition || fadeAlpha > 0) {
+    fill(0, 0, 0, fadeAlpha);
+    rect(0, 0, width, height);
+  }
+}
+
+function drawStartMenu() {
+  drawBackgroundScreen();
+  
+  textAlign(CENTER);
+  
+  push();
+  translate(width/2, 180);
+  rotate(radians(titleWobble));
+  
+  textSize(78);
+  drawingContext.shadowBlur = 12;
+  drawingContext.shadowColor = "rgba(0,0,0,0.5)";
+  
+  fill(80, 40, 30, 200);
+  text(typedTitle, 4, 4);
+  
+  fill(200, 150, 100);
+  text(typedTitle, 0, 0);
+  
+  fill(255, 220, 150);
+  text(typedTitle, -2, -2);
   
   drawingContext.shadowBlur = 0;
+  pop();
+  
+  textSize(28);
+  fill(255, 240, 200);
+  text(typedSubtitle, width/2, 300);
+  
+  let btnW = 380;
+  let btnH = 65;
+  let btnX = width/2 - btnW/2;
+  let btnY = 400;
+  
+  fill(50, 20, 20, 200);
+  rect(btnX + 6, btnY + 6, btnW, btnH, 25);
+  fill(140, 90, 60);
+  rect(btnX, btnY, btnW, btnH, 25);
+  
+  let glowAlpha = 150 + sin(frameCount * 0.05) * 105;
+  fill(255, 220, 100, glowAlpha);
+  textSize(28);
+  text("🎮 SELECT SEMESTER 🎮", width/2, btnY + 45);
+  fill(255, 240, 200);
+  text("🎮 SELECT SEMESTER 🎮", width/2, btnY + 43);
+  
+  if (mouseX > btnX && mouseX < btnX + btnW && mouseY > btnY && mouseY < btnY + btnH && mouseIsPressed) {
+    startFade("out", () => {
+      gameState = "levelSelect";
+      startFade("in");
+    });
+  }
+  
+  let rulesBtnW = 200;
+  let rulesBtnH = 50;
+  let rulesBtnX = width/2 - rulesBtnW/2;
+  let rulesBtnY = 490;
+  
+  fill(50, 20, 20, 200);
+  rect(rulesBtnX + 5, rulesBtnY + 5, rulesBtnW, rulesBtnH, 20);
+  fill(110, 70, 50);
+  rect(rulesBtnX, rulesBtnY, rulesBtnW, rulesBtnH, 20);
+  
+  let rulesGlow = 150 + sin(frameCount * 0.08) * 105;
+  fill(255, 220, 150, rulesGlow);
+  textSize(24);
+  text("📜 RULES 📜", width/2, rulesBtnY + 35);
+  fill(255, 240, 200);
+  text("📜 RULES 📜", width/2, rulesBtnY + 33);
+  
+  if (mouseX > rulesBtnX && mouseX < rulesBtnX + rulesBtnW && mouseY > rulesBtnY && mouseY < rulesBtnY + rulesBtnH && mouseIsPressed) {
+    startFade("out", () => {
+      gameState = "rules";
+      startFade("in");
+    });
+  }
   
   if (fadeTransition || fadeAlpha > 0) {
     fill(0, 0, 0, fadeAlpha);
@@ -485,14 +711,22 @@ function drawStartMenu() {
 }
 
 function drawGameOverScreen() {
-  fill(0, 0, 0, 200); rect(0, 0, width, height);
+  fill(0, 0, 0, 200);
+  rect(0, 0, width, height);
   fill(255, 50, 50);
-  textSize(80); textAlign(CENTER); text("GAME OVER", width/2, height/2 - 50);
-  textSize(30); fill(255); text("Press R to restart or ESC for menu", width/2, height/2 + 50);
+  textSize(80);
+  textAlign(CENTER);
+  text("GAME OVER", width/2, height/2 - 50);
+  textSize(30);
+  fill(255);
+  text("Press R to restart or ESC for menu", width/2, height/2 + 50);
   
   if (keyIsDown(27)) {
-    gameState = "levelSelect";
-    restartGame();
+    startFade("out", () => {
+      gameState = "levelSelect";
+      stopMusic();
+      startFade("in");
+    });
   }
   
   if (fadeTransition || fadeAlpha > 0) {
@@ -502,17 +736,30 @@ function drawGameOverScreen() {
 }
 
 function drawLevelCompleteScreen() {
-  fill(0, 0, 0, 200); rect(0, 0, width, height);
+  fill(0, 0, 0, 200);
+  rect(0, 0, width, height);
   let theme = getCurrentTheme();
   fill(255, 215, 0);
-  textSize(55); textAlign(CENTER); text("🎉 " + "Semester " + level + " - " + theme.name + " COMPLETE! 🎉", width/2, height/2 - 40);
-  textSize(32); fill(255); text("Press ENTER for next semester", width/2, height/2 + 50);
-  textSize(24); fill(255, 200, 100); text("Press ESC for level select", width/2, height/2 + 100);
-  textSize(20); fill(255, 200, 100); text("ECTS: " + ects + " / 100", width/2, height/2 + 150);
+  textSize(55);
+  textAlign(CENTER);
+  text("🎉 Semester " + level + " - " + theme.name + " COMPLETE! 🎉", width/2, height/2 - 40);
+  textSize(32);
+  fill(255);
+  text("Press ENTER for next semester", width/2, height/2 + 50);
+  textSize(24);
+  fill(255, 200, 100);
+  text("Press ESC for level select", width/2, height/2 + 100);
+  textSize(20);
+  fill(255, 200, 100);
+  text("ECTS: " + ects + " / 100", width/2, height/2 + 150);
   
   if (keyIsDown(27)) {
-    gameState = "levelSelect";
-    levelComplete = false;
+    startFade("out", () => {
+      gameState = "levelSelect";
+      levelComplete = false;
+      stopMusic();
+      startFade("in");
+    });
   }
   
   if (fadeTransition || fadeAlpha > 0) {
@@ -522,16 +769,18 @@ function drawLevelCompleteScreen() {
 }
 
 function draw() {
+  if (gameState === "intro") {
+    drawIntro();
+    return;
+  }
+  
   if (gameState === "menu") {
     drawStartMenu();
-    if (keyIsDown(ENTER) || keyIsDown(13)) { 
-      fadeOut(() => {
-        gameState = "game";
-        level = 1;
-        initLevel();
-        fadeIn();
-      });
-    }
+    return;
+  }
+  
+  if (gameState === "rules") {
+    drawRulesScreen();
     return;
   }
   
@@ -548,23 +797,42 @@ function draw() {
     
     if (lives <= 0) {
       drawGameOverScreen();
+      if (keyIsDown(82)) {
+        startFade("out", () => {
+          initLevel();
+          startFade("in");
+        });
+      }
       return;
     }
     
-    if (ects >= 100 && !levelComplete && gameStarted) { 
-      levelComplete = true; 
+    if (ects >= 100 && !levelComplete && gameStarted) {
+      levelComplete = true;
       stopMusic();
+      
+      if (level < 8 && !unlockedLevels[level]) {
+        unlockedLevels[level] = true;
+        console.log("🔓 Unlocked Semester " + (level + 1));
+      }
     }
     
-    if (levelComplete) { 
-      drawLevelCompleteScreen(); 
+    if (levelComplete) {
+      drawLevelCompleteScreen();
       if (keyIsDown(ENTER) || keyIsDown(13)) {
-        fadeOut(() => {
-          nextLevel();
-          fadeIn();
+        startFade("out", () => {
+          level++;
+          if (level > 8) {
+            level = 1;
+            gameState = "levelSelect";
+            alert("🎉 CONGRATULATIONS! YOU GRADUATED! 🎉");
+            stopMusic();
+          } else {
+            initLevel();
+          }
+          startFade("in");
         });
       }
-      return; 
+      return;
     }
     
     push();
@@ -576,7 +844,14 @@ function draw() {
     
     if (theme.bgKey === "rain") {
       stroke(180, 200, 255, 150);
-      for (let r of rain) { line(r.x, r.y, r.x - 4, r.y + 8); r.y += 9; if (r.y > height) { r.y = 0; r.x = random(width); } }
+      for (let r of rain) {
+        line(r.x, r.y, r.x - 4, r.y + 8);
+        r.y += 9;
+        if (r.y > height) {
+          r.y = 0;
+          r.x = random(width);
+        }
+      }
       noStroke();
     }
     
@@ -591,19 +866,22 @@ function draw() {
     rect(0, groundY - 12, width, 14);
     
     let wasOnGround = player.onGround;
-    if (player.y + player.h >= groundY) { 
-      player.y = groundY - player.h; 
-      player.dy = 0; 
+    if (player.y + player.h >= groundY) {
+      player.y = groundY - player.h;
+      player.dy = 0;
       if (!wasOnGround && player.onGround === false) {
         createDust(player.x + player.w/2, player.y + player.h);
       }
-      player.onGround = true; 
-      jumpsLeft = 2; 
+      player.onGround = true;
+      jumpsLeft = 2;
     }
     
     drawWorld();
     
-    for (let p of particles) { p.update(); p.draw(); }
+    for (let p of particles) {
+      p.update();
+      p.draw();
+    }
     particles = particles.filter(p => p.life > 0);
     
     if (invincible > 0) invincible--;
@@ -626,35 +904,42 @@ function draw() {
 }
 
 function initLevel() {
-  console.log("📚 SEMESTER " + level + ": " + getCurrentTheme().name);
+  console.log("📚 Starting SEMESTER " + level + ": " + getCurrentTheme().name);
   gameStarted = true;
   pauseMenuActive = false;
-  ects = 0; lives = 3; enemiesKilled = 0; invincible = 0;
-  levelComplete = false; shake = 0; jumpsLeft = 2;
-  collectedCoins = []; nextCoinId = 0;
-  worldOffset = 0; player.x = 150; player.y = groundY - 110; player.dy = 0;
-  platforms = []; movingPlatforms = []; enemies = []; coins = []; lavaPools = [];
-  checkpoints = []; particles = []; generatedUntil = 0;
-  player.speed = 5 + (level - 1) * 0.25; gravity = 0.8 + (level - 1) * 0.03;
-  generateChunk(0); playLevelMusic();
-}
-
-function nextLevel() { 
-  level++; 
-  if (level > 8) { 
-    level = 1;
-    gameState = "levelSelect";
-    stopMusic(); 
-    alert("🎉 CONGRATULATIONS! YOU GRADUATED! 🎉"); 
-    restartGame(); 
-    return; 
-  } 
-  initLevel(); 
+  ects = 0;
+  lives = 3;
+  enemiesKilled = 0;
+  invincible = 0;
+  levelComplete = false;
+  shake = 0;
+  jumpsLeft = 2;
+  collectedCoins = [];
+  nextCoinId = 0;
+  worldOffset = 0;
+  player.x = 150;
+  player.y = groundY - 110;
+  player.dy = 0;
+  platforms = [];
+  movingPlatforms = [];
+  enemies = [];
+  coins = [];
+  lavaPools = [];
+  checkpoints = [];
+  particles = [];
+  generatedUntil = 0;
+  player.speed = 5 + (level - 1) * 0.25;
+  gravity = 0.8 + (level - 1) * 0.03;
+  generateChunk(0);
+  playLevelMusic();
 }
 
 function loseLife() {
   if (invincible > 0) return;
-  lives--; invincible = 70; shake = 18; playEnemyCrashSound();
+  lives--;
+  invincible = 70;
+  shake = 18;
+  playEnemyCrashSound();
   
   player.x = 150;
   worldOffset = 0;
@@ -664,45 +949,24 @@ function loseLife() {
   createDust(player.x + player.w/2, player.y + player.h);
   
   for (let i = 0; i < 15; i++) particles.push(new Particle(player.x + 40, player.y + 50, color(255, 0, 0), 8, 50));
-  if (lives <= 0) { playGameOverSound(); stopMusic(); }
+  if (lives <= 0) {
+    playGameOverSound();
+    stopMusic();
+  }
 }
 
-function addLife() { 
-  if (lives < maxLives) lives++; 
-  for (let i = 0; i < 15; i++) particles.push(new Particle(player.x + 40, player.y + 50, color(255, 100, 200), 8, 50)); 
-}
-
-function restartGame() {
-  gameStarted = true; 
-  pauseMenuActive = false;
-  level = 1; 
-  ects = 0; 
-  lives = 3; 
-  enemiesKilled = 0; 
-  worldOffset = 0;
-  player.x = 150; 
-  player.y = groundY - 110; 
-  player.dy = 0; 
-  invincible = 0; 
-  levelComplete = false;
-  platforms = []; 
-  movingPlatforms = []; 
-  enemies = []; 
-  coins = [];
-  lavaPools = []; 
-  checkpoints = []; 
-  particles = []; 
-  generatedUntil = 0; 
-  collectedCoins = []; 
-  nextCoinId = 0;
-  player.speed = 5; 
-  gravity = 0.8; 
-  generateChunk(0); 
-  playLevelMusic(); 
-  fadeAlpha = 0;
+function addLife() {
+  if (lives < maxLives) lives++;
+  for (let i = 0; i < 15; i++) particles.push(new Particle(player.x + 40, player.y + 50, color(255, 100, 200), 8, 50));
 }
 
 function keyPressed() {
+  if (gameState === "intro") {
+    introVideo.stop();
+    gameState = "menu";
+    return;
+  }
+  
   if (gameState === "game" && !levelComplete && lives > 0) {
     if (key === '1' || keyCode === 27) {
       if (!pauseMenuActive) {
@@ -728,15 +992,16 @@ function keyPressed() {
           pauseMenuActive = false;
         } else if (pauseSelectedOption === 1) {
           pauseMenuActive = false;
-          fadeOut(() => {
+          startFade("out", () => {
             initLevel();
-            fadeIn();
+            startFade("in");
           });
         } else if (pauseSelectedOption === 2) {
           pauseMenuActive = false;
-          fadeOut(() => {
+          startFade("out", () => {
             gameState = "levelSelect";
-            fadeIn();
+            stopMusic();
+            startFade("in");
           });
         }
         return;
@@ -745,54 +1010,52 @@ function keyPressed() {
     }
   }
   
-  if (gameState === "menu" && (keyCode === ENTER || keyCode === 13)) { 
-    fadeOut(() => {
-      gameState = "game";
-      level = 1;
-      initLevel();
-      fadeIn();
+  if (levelComplete && (keyCode === ENTER || keyCode === 13)) {
+    startFade("out", () => {
+      level++;
+      if (level > 8) {
+        level = 1;
+        gameState = "levelSelect";
+        alert("🎉 CONGRATULATIONS! YOU GRADUATED! 🎉");
+        stopMusic();
+      } else {
+        initLevel();
+      }
+      startFade("in");
     });
-    return; 
-  }
-  
-  if (gameState === "levelSelect") {
     return;
   }
   
-  if (levelComplete && (keyCode === ENTER || keyCode === 13)) { 
-    fadeOut(() => {
-      nextLevel();
-      fadeIn();
-    });
-    return; 
-  }
-  
-  if (keyCode === 82 && (lives <= 0)) { 
-    fadeOut(() => {
-      restartGame();
-      fadeIn();
-    });
-    return; 
-  }
-  
   if (key === ' ' && jumpsLeft > 0 && !levelComplete && lives > 0 && gameStarted && gameState === "game" && !pauseMenuActive) {
-    player.dy = jumpPower; jumpsLeft--;
+    player.dy = jumpPower;
+    jumpsLeft--;
     for (let i = 0; i < 8; i++) particles.push(new Particle(player.x + 30, player.y + player.h, color(255, 255, 255), 5, 40));
   }
   
   if (keyCode === SHIFT && !levelComplete && lives > 0 && gameStarted && gameState === "game" && !pauseMenuActive) {
     player.speed = 14;
-    setTimeout(() => { if (player) player.speed = 5 + (level - 1) * 0.25; }, 280);
+    setTimeout(() => {
+      if (player) player.speed = 5 + (level - 1) * 0.25;
+    }, 280);
     for (let i = 0; i < 12; i++) particles.push(new Particle(player.x + 40, player.y + 60, color(0, 255, 255), 6, 30));
   }
   
-  if (key === 'm' || key === 'M') { soundEnabled = !soundEnabled; if (soundEnabled) playLevelMusic(); else stopMusic(); }
-  if (keyCode === UP_ARROW) { soundVol = min(soundVol + 0.1, 1); setSoundVolume(soundVol); }
-  if (keyCode === DOWN_ARROW) { soundVol = max(soundVol - 0.1, 0); setSoundVolume(soundVol); }
+  if (key === 'm' || key === 'M') {
+    soundEnabled = !soundEnabled;
+    if (soundEnabled && gameState === "game") playLevelMusic();
+    else if (!soundEnabled) stopMusic();
+  }
+  if (keyCode === UP_ARROW) {
+    soundVol = min(soundVol + 0.1, 1);
+    setSoundVolume(soundVol);
+  }
+  if (keyCode === DOWN_ARROW) {
+    soundVol = max(soundVol - 0.1, 0);
+    setSoundVolume(soundVol);
+  }
 }
 
-function mousePressed() {
-  return false;
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  groundY = height - 100;
 }
-
-function windowResized() { resizeCanvas(windowWidth, windowHeight); groundY = height - 100; }

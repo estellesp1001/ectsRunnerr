@@ -1,15 +1,15 @@
 // =====================================
-// UI.JS (ECTS + ΖΩΕΣ ΔΙΠΛΑ ΜΕ ΚΑΠΕΛΟ ΠΤΥΧΙΟΥ)
+// UI.JS (ΜΕ ΓΡΑΜΜΑΤΑ ΜΕΣΑ ΣΤΟ ΠΛΑΙΣΙΟ, ΧΩΡΙΣ ΜΙΚΡΟΓΡΑΦΙΑ)
 // =====================================
 
 function drawUI() {
   let theme = getCurrentTheme();
   
   fill(0, 0, 0, 200);
-  rect(0, 0, width, 70);
+  rect(0, 0, width, 85);
   
   // ========== ECTS (ΜΑΥΡΟ, ΤΡΙΣΔΙΑΣΤΑΤΟ) ==========
-  textSize(28);
+  textSize(24);
   textAlign(LEFT);
   
   fill(0, 0, 0, 200);
@@ -21,9 +21,8 @@ function drawUI() {
   fill(255, 255, 255);
   text("🎓 ECTS: " + floor(ects) + "/100", 14, 44);
   
-  // ========== ΖΩΕΣ (ΚΑΠΕΛΟ ΠΤΥΧΙΟΥ) ==========
+  // ========== ΖΩΕΣ (ΚΑΠΕΛΑ ΠΤΥΧΙΟΥ) ==========
   let hatsX = 280;
-  
   textSize(28);
   
   for (let i = 0; i < lives; i++) {
@@ -46,19 +45,19 @@ function drawUI() {
     text("🎓", x, 45);
   }
   
-  // Όνομα εξαμήνου
+  // ========== ΟΝΟΜΑ ΕΞΑΜΗΝΟΥ (ΔΕΞΙΑ, ΜΕΣΑ ΣΤΟ ΠΛΑΙΣΙΟ) ==========
   textSize(18);
   fill(255, 220, 100);
   textAlign(RIGHT);
-  text(theme.name, width - 100, 35);
+  text(theme.name, width - 30, 35);
   
-  // Background preview
-  let bgImg = bgImages[theme.bgKey];
-  if (bgImg && bgImg.width > 0) {
-    image(bgImg, width - 95, 5, 50, 35);
-  }
+  // ========== ΜΗΝΥΜΑ MENU (ΔΕΞΙΑ, ΚΑΤΩ ΑΠΟ ΤΟ ΟΝΟΜΑ) ==========
+  textSize(11);
+  fill(180, 180, 220);
+  textAlign(RIGHT);
+  text("Press ESC for menu", width - 30, 55);
   
-  // Μετρητής εχθρών
+  // ========== ΜΕΤΡΗΤΗΣ ΕΧΘΡΩΝ (ΑΡΙΣΤΕΡΑ ΚΑΤΩ) ==========
   let enemiesNeeded = 2 - (enemiesKilled % 2);
   if (enemiesNeeded === 0) enemiesNeeded = 2;
   
@@ -67,7 +66,7 @@ function drawUI() {
   textAlign(LEFT);
   text("⚔️ " + enemiesNeeded + " enemies for +1 life", 15, 65);
   
-  // Οδηγίες
+  // ========== ΟΔΗΓΙΕΣ (ΔΕΞΙΑ ΚΑΤΩ) ==========
   textSize(10);
   fill(180, 180, 220);
   textAlign(RIGHT);

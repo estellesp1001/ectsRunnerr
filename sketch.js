@@ -1,5 +1,5 @@
 // =====================================
-// ECTS RUNNER - SKETCH.JS (ΤΕΛΙΚΟ)
+// ECTS RUNNER - SKETCH.JS (ΤΕΛΙΚΟ ΜΕ YOOHOO)
 // =====================================
 
 let gravity = 0.8;
@@ -17,7 +17,7 @@ let jumpsLeft = 2;
 let shake = 0;
 let enemiesKilled = 0;
 
-// States: 'intro', 'menu', 'levelSelect', 'game', 'pauseMenu', 'rules'
+// States: 'intro', 'menu', 'levelSelect', 'game', 'pauseMenu', 'rules', 'end'
 let gameState = "intro";
 
 // Intro video
@@ -54,6 +54,11 @@ let subtitle = "Survive in the University & Get Your Degree!";
 let typedSubtitle = "";
 let subtitleIndex = 0;
 
+// End screen
+let yoohooSound;
+let endScreenTimer = 0;
+let endScreenActive = false;
+
 let platforms = [];
 let movingPlatforms = [];
 let enemies = [];
@@ -79,6 +84,9 @@ let gameOverSound;
 
 let bgImages = {};
 let playerImg;
+let playerJumpImg;
+let playerClaimImg;
+let playerCrushImg;
 
 let imageDimensions = {
   spring: { w: 512, h: 512, type: "square" },
@@ -116,7 +124,15 @@ function preload() {
   bgImages.rain = loadImage("assets/images/rain.png");
   bgImages.finalpush = loadImage("assets/images/finalpush.png");
   bgImages.congrats = loadImage("assets/images/congrats.png");
+  bgImages.midLevels = loadImage("assets/images/mid-levels.png");
+  bgImages.end = loadImage("assets/images/end.png");
+  
   playerImg = loadImage("assets/images/player.png");
+  playerJumpImg = loadImage("assets/images/player_jump.png");
+  playerClaimImg = loadImage("assets/images/claim.png");
+  playerCrushImg = loadImage("assets/images/crush.png");
+  
+  yoohooSound = loadSound("assets/sounds/yoohoo.mp3");
   
   bgMusic.semester1_spring = loadSound("assets/sounds/semester1_spring.mp3");
   bgMusic.semester2_summer = loadSound("assets/sounds/semester2_summer.mp3");
@@ -196,6 +212,14 @@ function setup() {
     titleAngle += 0.05;
     titleWobble = sin(titleAngle) * 3;
   }, 50);
+}
+
+function enableAudio() {
+  if (getAudioContext().state !== 'running') {
+    getAudioContext().resume().then(() => {
+      console.log("🔊 Audio enabled");
+    });
+  }
 }
 
 function startFade(mode, callback) {
@@ -295,7 +319,6 @@ function drawBackgroundScreen() {
 
 function getCurrentTheme() { return themes[(level - 1) % themes.length]; }
 
-// ========== INTRO VIDEO SCREEN (ΜΕΤΑΚΙΝΗΜΕΝΟ ΠΙΟ ΚΑΤΩ) ==========
 function drawIntro() {
   background(0);
   
@@ -313,12 +336,12 @@ function drawIntro() {
     }
     
     let videoX = (width - videoW) / 2;
-    let videoY = (height - videoH) / 2 -350 ;
+    let videoY = (height - videoH) / 2 - 350;
     
     image(introVideo, videoX, videoY, videoW, videoH);
   }
   
-  fill(0, 0, 0, 150);
+  fill(0, 0, 0, 200);
   rect(0, 0, width, height);
   
   textAlign(CENTER);
@@ -736,8 +759,22 @@ function drawGameOverScreen() {
 }
 
 function drawLevelCompleteScreen() {
-  fill(0, 0, 0, 200);
+  if (bgImages.midLevels && bgImages.midLevels.width > 0) {
+    let scaleW = width / bgImages.midLevels.width;
+    let scaleH = height / bgImages.midLevels.height;
+    let scale = max(scaleW, scaleH);
+    let scaledW = bgImages.midLevels.width * scale;
+    let scaledH = bgImages.midLevels.height * scale;
+    let x = (width - scaledW) / 2;
+    let y = (height - scaledH) / 2;
+    image(bgImages.midLevels, x, y, scaledW, scaledH);
+  } else {
+    background(0, 0, 0, 200);
+  }
+  
+  fill(0, 0, 0, 180);
   rect(0, 0, width, height);
+  
   let theme = getCurrentTheme();
   fill(255, 215, 0);
   textSize(55);
@@ -758,6 +795,55 @@ function drawLevelCompleteScreen() {
       gameState = "levelSelect";
       levelComplete = false;
       stopMusic();
+      startFade("in");
+    });
+  }
+}
+
+function showEndScreen() {
+  if (!endScreenActive) {
+    endScreenActive = true;
+    if (yoohooSound && !yoohooSound.isPlaying()) {
+      yoohooSound.play();
+    }
+    endScreenTimer = ceil(yoohooSound.duration() * 60) + 30;
+  }
+  
+  if (bgImages.end && bgImages.end.width > 0) {
+    let scaleW = width / bgImages.end.width;
+    let scaleH = height / bgImages.end.height;
+    let scale = max(scaleW, scaleH);
+    let scaledW = bgImages.end.width * scale;
+    let scaledH = bgImages.end.height * scale;
+    let x = (width - scaledW) / 2;
+    let y = (height - scaledH) / 2;
+    image(bgImages.end, x, y, scaledW, scaledH);
+  } else {
+    background(0, 0, 0);
+  }
+  
+  fill(0, 0, 0, 180);
+  rect(0, 0, width, height);
+  
+  textAlign(CENTER);
+  fill(255, 215, 0);
+  textSize(60);
+  text("🎉 CONGRATULATIONS! 🎉", width/2, height/2 - 80);
+  textSize(40);
+  fill(255);
+  text("YOU GRADUATED!", width/2, height/2);
+  textSize(24);
+  fill(255, 200, 100);
+  text("Returning to menu in " + ceil(endScreenTimer / 60) + " seconds...", width/2, height/2 + 100);
+  
+  if (endScreenTimer > 0) {
+    endScreenTimer--;
+  } else {
+    endScreenActive = false;
+    gameState = "menu";
+    level = 1;
+    unlockedLevels = [true, false, false, false, false, false, false, false];
+    startFade("out", () => {
       startFade("in");
     });
   }
@@ -786,6 +872,11 @@ function draw() {
   
   if (gameState === "levelSelect") {
     drawLevelSelect();
+    return;
+  }
+  
+  if (gameState === "end") {
+    showEndScreen();
     return;
   }
   
@@ -820,15 +911,7 @@ function draw() {
       drawLevelCompleteScreen();
       if (keyIsDown(ENTER) || keyIsDown(13)) {
         startFade("out", () => {
-          level++;
-          if (level > 8) {
-            level = 1;
-            gameState = "levelSelect";
-            alert("🎉 CONGRATULATIONS! YOU GRADUATED! 🎉");
-            stopMusic();
-          } else {
-            initLevel();
-          }
+          nextLevel();
           startFade("in");
         });
       }
@@ -934,10 +1017,18 @@ function initLevel() {
   playLevelMusic();
 }
 
+function nextLevel() {
+  level++;
+  if (level > 8) {
+    gameState = "end";
+    stopMusic();
+    return;
+  }
+  initLevel();
+}
+
 function loseLife() {
-  if (invincible > 0) return;
   lives--;
-  invincible = 70;
   shake = 18;
   playEnemyCrashSound();
   
@@ -961,9 +1052,23 @@ function addLife() {
 }
 
 function keyPressed() {
+  enableAudio();
+  
   if (gameState === "intro") {
     introVideo.stop();
     gameState = "menu";
+    return;
+  }
+  
+  if (gameState === "menu" && (keyCode === ENTER || keyCode === 13)) {
+    startFade("out", () => {
+      gameState = "levelSelect";
+      startFade("in");
+    });
+    return;
+  }
+  
+  if (gameState === "levelSelect") {
     return;
   }
   
@@ -1012,15 +1117,7 @@ function keyPressed() {
   
   if (levelComplete && (keyCode === ENTER || keyCode === 13)) {
     startFade("out", () => {
-      level++;
-      if (level > 8) {
-        level = 1;
-        gameState = "levelSelect";
-        alert("🎉 CONGRATULATIONS! YOU GRADUATED! 🎉");
-        stopMusic();
-      } else {
-        initLevel();
-      }
+      nextLevel();
       startFade("in");
     });
     return;

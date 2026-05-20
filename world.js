@@ -1,5 +1,5 @@
 // =====================================
-// WORLD.JS (ΧΩΡΙΣ CHECKPOINTS, ΜΕ ΜΩΒ ΔΙΑΒΟΛΑΚΙ 4.9, 50% ΝΟΜΙΣΜΑΤΑ)
+// WORLD.JS (ΣΤΑΘΕΡΗ ΕΚΔΟΣΗ - ΕΧΘΡΟΙ ΑΦΑΙΡΟΥΝ ΖΩΕΣ)
 // =====================================
 
 function generateChunk(startX) {
@@ -28,12 +28,12 @@ function generateChunk(startX) {
       coins.push({ x: x + 260, y: 130, taken: false, id: nextCoinId++, value: coinValue });
     }
     
-    if (random() < 0.75) {
+    if (random() < 0.5) {
       let coinValue = floor(random(5, 11));
       coins.push({ x: x + 120, y: py - 45, taken: false, id: nextCoinId++, value: coinValue });
     }
     
-    let enemyChance = 0.18 + difficulty * 0.03 + levelBonus * 0.04;
+    let enemyChance = 0.2 + difficulty * 0.03 + levelBonus * 0.04;
     
     if (random() < enemyChance) {
       let enemyNumber = floor(random(0, 5));
@@ -105,6 +105,26 @@ function updateWorld() {
       if (e.x > e.maxX || e.x < e.minX) e.dir *= -1;
     }
   }
+}
+
+function drawPaper(x, y, value) {
+  let paperW = 40;
+  let paperH = 50;
+  
+  fill(255, 255, 255);
+  rect(x - paperW/2, y - paperH/2, paperW, paperH, 3);
+  
+  fill(230, 230, 230);
+  rect(x - paperW/2 + 3, y - paperH/2 + 5, paperW - 6, 3, 1);
+  rect(x - paperW/2 + 3, y - paperH/2 + 12, paperW - 6, 3, 1);
+  rect(x - paperW/2 + 3, y - paperH/2 + 19, paperW - 6, 3, 1);
+  rect(x - paperW/2 + 3, y - paperH/2 + 26, paperW - 6, 3, 1);
+  rect(x - paperW/2 + 3, y - paperH/2 + 33, paperW - 6, 3, 1);
+  
+  fill(0, 180, 0);
+  textSize(22);
+  textAlign(CENTER, CENTER);
+  text(value, x, y);
 }
 
 function drawWorld() {
@@ -193,6 +213,19 @@ function drawWorld() {
     }
   }
   
+  for (let cp of checkpoints) {
+    let cx = cp.x + worldOffset;
+    fill(200, 0, 0);
+    rect(cx, cp.y - 90, 12, 90);
+    fill(255, 215, 0);
+    triangle(cx + 12, cp.y - 75, cx + 65, cp.y - 60, cx + 12, cp.y - 45);
+    if (player.x + player.w > cx && player.x < cx + 70) {
+      checkpointX = cp.x;
+      checkpointMessageTimer = 120;
+    }
+  }
+  
+  // ========== ΝΟΜΙΣΜΑΤΑ ==========
   for (let i = 0; i < coins.length; i++) {
     let c = coins[i];
     let alreadyCollected = collectedCoins.includes(c.id);
@@ -201,26 +234,17 @@ function drawWorld() {
       let cx = c.x + worldOffset;
       let displayValue = c.value;
       
-      if (displayValue >= 5 && displayValue <= 6) {
-        fill(255, 215, 0);
-      } else if (displayValue >= 7 && displayValue <= 8) {
-        fill(0, 100, 255);
-      } else {
-        fill(0, 200, 0);
-      }
-      ellipse(cx, c.y, 28, 28);
+      drawPaper(cx, c.y, displayValue);
       
-      fill(255);
-      textSize(18);
-      textAlign(CENTER, CENTER);
-      text(displayValue, cx, c.y);
-      
-      if (player.x < cx + 15 && player.x + player.w > cx - 15 &&
-          player.y < c.y + 15 && player.y + player.h > c.y - 15) {
+      if (player.x < cx + 20 && player.x + player.w > cx - 20 &&
+          player.y < c.y + 25 && player.y + player.h > c.y - 25) {
+        
         c.taken = true;
         collectedCoins.push(c.id);
         ects = ects + 5;
         playCoinSound();
+        
+        triggerClaimEffect();
         
         for (let j = 0; j < 12; j++) {
           particles.push(new Particle(cx, c.y, "gold"));
@@ -229,6 +253,7 @@ function drawWorld() {
     }
   }
   
+  // ========== ΕΧΘΡΟΙ (ΑΠΛΗ ΚΑΙ ΣΤΑΘΕΡΗ ΕΚΔΟΣΗ) ==========
   for (let e of enemies) {
     let ex = e.x + worldOffset;
     
@@ -254,7 +279,9 @@ function drawWorld() {
       
       if (player.x < ex + e.w && player.x + player.w > ex &&
           player.y < e.y + e.h && player.y + player.h > e.y) {
-        if (invincible === 0) loseLife();
+        if (invincible === 0) {
+          loseLife();
+        }
       }
       
     } else {
@@ -278,7 +305,8 @@ function drawWorld() {
       if (player.x < ex + e.w && player.x + player.w > ex &&
           player.y < e.y + e.h && player.y + player.h > e.y) {
         
-        if (player.dy > 0 && player.y + player.h < e.y + 25) {
+        // Πατάει πάνω στον εχθρό
+        if (player.dy > 0 && player.y + player.h <= e.y + 15) {
           e.dead = true;
           player.dy = -14;
           enemiesKilled++;
@@ -292,7 +320,10 @@ function drawWorld() {
             particles.push(new Particle(ex + e.w/2, e.y + e.h/2, "pink"));
           }
         } else {
-          if (invincible === 0) loseLife();
+          // Χτυπάει στον εχθρό
+          if (invincible === 0) {
+            loseLife();
+          }
         }
       }
     }

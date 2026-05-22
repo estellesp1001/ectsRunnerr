@@ -1,50 +1,71 @@
+/**
+ * SKETCH.JS - Main Game File
+ * 
+ * This is the core file that controls the entire game:
+ * - Game states and transitions (intro, menu, level select, gameplay, pause, end)
+ * - Video intro playback and automatic transition
+ * - World generation and rendering
+ * - Player physics and collision handling
+ * - Level progression and semester unlocking
+ * - Audio management (music, sound effects, volume control)
+ * - UI rendering and cursor management
+ * - Game over and graduation sequences
+ */
+
 // =====================================
-// ECTS RUNNER - SKETCH.JS (ΤΕΛΙΚΟ ΜΕ YOOHOO)
+// GAME PHYSICS AND CORE VARIABLES
 // =====================================
 
-let gravity = 0.8;
-let jumpPower = -22;
-let worldOffset = 0;
-let ects = 0;
-let lives = 3;
-let maxLives = 10;
-let level = 1;
-let invincible = 0;
-let groundY;
-let gameStarted = false;
-let levelComplete = false;
-let jumpsLeft = 2;
-let shake = 0;
-let enemiesKilled = 0;
+let gravity = 0.8;              // Gravity force applied each frame
+let jumpPower = -22;            // Initial upward velocity when jumping
+let worldOffset = 0;            // Camera scrolling offset
+let ects = 0;                   // Current ECTS score (0-100 to complete semester)
+let lives = 3;                  // Player lives (max 10)
+let maxLives = 10;              // Maximum possible lives
+let level = 1;                  // Current semester (1-8)
+let invincible = 0;             // Invincibility frames after taking damage
+let groundY;                    // Y-coordinate of the ground level
+let gameStarted = false;        // Whether gameplay has started
+let levelComplete = false;      // Whether current semester is completed
+let jumpsLeft = 2;              // Remaining jumps (double jump mechanic)
+let shake = 0;                  // Camera shake intensity
+let enemiesKilled = 0;          // Counter for enemy kills (every 2 = +1 life)
 
-// States: 'intro', 'menu', 'levelSelect', 'game', 'pauseMenu', 'rules', 'end'
+// =====================================
+// GAME STATE MANAGEMENT
+// =====================================
+// Possible states: 'intro', 'menu', 'levelSelect', 'game', 'pauseMenu', 'rules', 'end'
 let gameState = "intro";
 
-// Intro video
+// Intro video element
 let introVideo;
 
-// Unlocked levels
+// Level unlocking system (only first semester unlocked initially)
 let unlockedLevels = [true, false, false, false, false, false, false, false];
 
-// In-game menu
-let pauseMenuActive = false;
-let pauseSelectedOption = 0;
-let pauseOptions = ["▶ RESUME", "🔄 RESTART", "🏠 GO TO MENU"];
+// =====================================
+// PAUSE MENU
+// =====================================
+let pauseMenuActive = false;        // Whether pause menu is active
+let pauseSelectedOption = 0;        // Currently selected menu option (0,1,2)
+let pauseOptions = ["▶ RESUME", "🔄 RESTART", "🏠 GO TO MENU"];  // Menu options
 
-// Εφέ μετάβασης (FADE)
-let fadeAlpha = 0;
-let fadeTransition = false;
-let fadeCallback = null;
+// =====================================
+// VISUAL EFFECTS
+// =====================================
+let fadeAlpha = 0;                  // Fade transition opacity (0-255)
+let fadeTransition = false;         // Whether fade transition is active
+let fadeCallback = null;            // Callback function after fade completes
 
-// Rules panel animation
-let rulesYOffset = 0;
-let rulesAnimDir = 1;
+let rulesYOffset = 0;               // Y-offset for rules panel animation
+let rulesAnimDir = 1;               // Animation direction (1 = down, -1 = up)
 
-// Title animation (wobble)
-let titleAngle = 0;
-let titleWobble = 0;
+let titleAngle = 0;                 // Angle for title wobble animation
+let titleWobble = 0;                // Current wobble offset
 
-// Typing effect for menu
+// =====================================
+// TYPING EFFECT (MENU TEXT ANIMATION)
+// =====================================
 let fullTitle = "ECTS RUNNER";
 let typedTitle = "";
 let titleIndex = 0;
@@ -54,40 +75,56 @@ let subtitle = "Survive in the University & Get Your Degree!";
 let typedSubtitle = "";
 let subtitleIndex = 0;
 
-// End screen
-let yoohooSound;
-let endScreenTimer = 0;
-let endScreenActive = false;
+// =====================================
+// END SCREEN (GRADUATION)
+// =====================================
+let yoohooSound;                    // Celebration sound effect
+let endScreenTimer = 0;             // Timer for auto-return to menu
+let endScreenActive = false;        // Whether end screen is active
 
-let platforms = [];
-let movingPlatforms = [];
-let enemies = [];
-let coins = [];
-let lavaPools = [];
-let checkpoints = [];
-let particles = [];
-let rain = [];
-let generatedUntil = 0;
+// =====================================
+// WORLD OBJECTS ARRAYS
+// =====================================
+let platforms = [];                 // Static platforms (book-shaped)
+let movingPlatforms = [];           // Horizontally moving platforms
+let enemies = [];                   // Enemy objects
+let coins = [];                     // Collectible paper items
+let lavaPools = [];                 // Hazardous lava pools
+let checkpoints = [];               // Respawn points
+let particles = [];                 // Visual particle effects
+let rain = [];                      // Weather effect particles
+let generatedUntil = 0;             // World generation progress
 
-let collectedCoins = [];
-let nextCoinId = 0;
+let collectedCoins = [];            // IDs of collected coins(exam papers) (prevents re-collection)
+let nextCoinId = 0;                 // Unique ID generator for coins (exam papers)
 
-let bgMusic = {};
-let currentSound;
-let soundEnabled = true;
-let soundVol = 0.5;
+// =====================================
+// AUDIO VARIABLES
+// =====================================
+let bgMusic = {};                   // Background music tracks (one per semester)
+let currentSound;                   // Currently playing music
+let soundEnabled = true;            // Master sound toggle
+let soundVol = 0.5;                 // Master volume (0-1)
 
-let coinSound;
-let enemyCrashSound;
-let enemyKillSound;
-let gameOverSound;
+let coinSound;                      // Exam paper collection sound
+let enemyCrashSound;                // Player hit sound
+let enemyKillSound;                 // Enemy defeat sound
+let gameOverSound;                  // Game over sound
 
-let bgImages = {};
-let playerImg;
-let playerJumpImg;
-let playerClaimImg;
-let playerCrushImg;
+// =====================================
+// IMAGE ASSETS
+// =====================================
+let bgImages = {};                  // Background images (screen, level backgrounds)
+let playerImg;                      // Normal player sprite
+let playerJumpImg;                  // Jumping player sprite
+let playerClaimImg;                 // Exam paper collection celebration sprite
+let playerCrushImg;                 // Hit/damage sprite
 
+/**
+ * IMAGE DIMENSIONS FOR PROPER SCALING
+ * square: 512x512 images that need centering
+ * wide: 1536x1024 images that can fill screen
+ */
 let imageDimensions = {
   spring: { w: 512, h: 512, type: "square" },
   summer: { w: 512, h: 512, type: "square" },
@@ -99,6 +136,13 @@ let imageDimensions = {
   congrats: { w: 1536, h: 1024, type: "wide" }
 };
 
+/**
+ * SEMESTER THEMES
+ * Each semester has unique:
+ * - Name and background image key
+ * - Soundtrack key
+ * - Sky, ground, and grass colors
+ */
 let themes = [
   { name: "Spring", bgKey: "spring", soundKey: "semester1_spring", sky: [135, 206, 235], ground: [101, 67, 33], grass: [34, 139, 34] },
   { name: "Summer", bgKey: "summer", soundKey: "semester2_summer", sky: [255, 200, 100], ground: [180, 120, 40], grass: [255, 180, 0] },
@@ -110,6 +154,16 @@ let themes = [
   { name: "Congrats", bgKey: "congrats", soundKey: "semester8_congrats", sky: [139, 0, 0], ground: [139, 0, 0], grass: [220, 20, 60] }
 ];
 
+// =====================================
+// PRELOAD - LOAD ALL ASSETS
+// =====================================
+/**
+ * Loads all game assets before starting:
+ * - Intro video
+ * - Background images (screen, semester backgrounds, mid-levels, end screen)
+ * - Player sprites (normal, jump, claim, crush)
+ * - Sound effects and background music tracks
+ */
 function preload() {
   introVideo = createVideo("assets/videos/intro.mp4");
   introVideo.hide();
@@ -149,21 +203,33 @@ function preload() {
   gameOverSound = loadSound("assets/sounds/gameover.wav");
 }
 
+/**
+ * PARTICLE SYSTEM CLASS
+ * Creates visual effects for:
+ * - Exam paper collection (gold particles)
+ * - Enemy defeat (pink particles)
+ * - Dust clouds (brown particles)
+ * - Lava bubbles (orange particles)
+ */
 class Particle {
   constructor(x, y, c, size = 6, life = 60) {
-    this.x = x; this.y = y;
-    this.dx = random(-3, 3); this.dy = random(-3, 3) - 2;
+    this.x = x;
+    this.y = y;
+    this.dx = random(-3, 3);
+    this.dy = random(-3, 3) - 2;  // Initial upward bias
     this.life = life;
     this.maxLife = life;
     this.colorVal = c;
     this.size = size;
   }
+  
   update() { 
     this.x += this.dx; 
     this.y += this.dy; 
     this.life--; 
-    this.dy += 0.2;
+    this.dy += 0.2;  // Gravity effect on particles
   }
+  
   draw() { 
     let alpha = map(this.life, 0, this.maxLife, 0, 200);
     fill(red(this.colorVal), green(this.colorVal), blue(this.colorVal), alpha);
@@ -172,6 +238,11 @@ class Particle {
   }
 }
 
+/**
+ * Creates dust particles when player lands on ground
+ * @param {number} x - X position for dust effect
+ * @param {number} y - Y position for dust effect
+ */
 function createDust(x, y) {
   for (let i = 0; i < 12; i++) {
     let dustColor = color(150, 120, 80);
@@ -179,16 +250,25 @@ function createDust(x, y) {
   }
 }
 
+// =====================================
+// SETUP - INITIALIZE GAME
+// =====================================
 function setup() {
   createCanvas(windowWidth, windowHeight);
   groundY = height - 100;
   initPlayer();
-  for (let i = 0; i < 200; i++) rain.push({ x: random(width), y: random(height) });
+  
+  // Initialize rain particles
+  for (let i = 0; i < 200; i++) {
+    rain.push({ x: random(width), y: random(height) });
+  }
+  
   generateChunk(0);
   
   introVideo.loop();
   introVideo.volume(0.5);
   
+  // Typing effect intervals
   setInterval(() => {
     if (typingActive && titleIndex < fullTitle.length) {
       typedTitle += fullTitle[titleIndex];
@@ -203,17 +283,23 @@ function setup() {
     }
   }, 50);
   
+  // Rules panel bobbing animation
   setInterval(() => {
     rulesYOffset += 2 * rulesAnimDir;
     if (rulesYOffset > 8 || rulesYOffset < -8) rulesAnimDir *= -1;
   }, 100);
   
+  // Title wobble animation
   setInterval(() => {
     titleAngle += 0.05;
     titleWobble = sin(titleAngle) * 3;
   }, 50);
 }
 
+/**
+ * Enables audio context (required by browsers for autoplay)
+ * Called on first user interaction (key press)
+ */
 function enableAudio() {
   if (getAudioContext().state !== 'running') {
     getAudioContext().resume().then(() => {
@@ -222,6 +308,11 @@ function enableAudio() {
   }
 }
 
+/**
+ * FADE TRANSITION EFFECT
+ * @param {string} mode - "out" (fade to black) or "in" (fade from black)
+ * @param {function} callback - Function to execute after fade completes
+ */
 function startFade(mode, callback) {
   if (fadeTransition) return;
   fadeTransition = true;
@@ -255,6 +346,10 @@ function startFade(mode, callback) {
   }
 }
 
+/**
+ * PLAYS BACKGROUND MUSIC FOR CURRENT SEMESTER
+ * Stops previous music and starts new track
+ */
 function playLevelMusic() {
   let theme = getCurrentTheme();
   let newSound = bgMusic[theme.soundKey];
@@ -273,21 +368,34 @@ function stopMusic() {
   }
 }
 
-function setSoundVolume(vol) { soundVol = constrain(vol, 0, 1); if (currentSound) currentSound.setVolume(soundVol); }
+function setSoundVolume(vol) { 
+  soundVol = constrain(vol, 0, 1); 
+  if (currentSound) currentSound.setVolume(soundVol); 
+}
+
+// Sound effect triggers
 function playCoinSound() { if (soundEnabled && coinSound) coinSound.play(); }
 function playEnemyCrashSound() { if (soundEnabled && enemyCrashSound) enemyCrashSound.play(); }
 function playEnemyKillSound() { if (soundEnabled && enemyKillSound) enemyKillSound.play(); }
 function playGameOverSound() { if (soundEnabled && gameOverSound) gameOverSound.play(); }
 
+/**
+ * DRAWS BACKGROUND WITH PARALLAX SCROLLING
+ * @param {Object} theme - Current semester theme
+ * @param {p5.Image} bgImg - Background image to draw
+ */
 function drawBackground(theme, bgImg) {
   if (bgImg && bgImg.width > 0) {
     let dims = imageDimensions[theme.bgKey];
-    let bgOffset = worldOffset * 0.25;
+    let bgOffset = worldOffset * 0.25;  // Parallax speed (slower than player)
+    
     if (dims.type === "wide") {
+      // Wide images (1536x1024) - scroll horizontally
       let maxOffset = max(0, dims.w - width);
       bgOffset = constrain(bgOffset, 0, maxOffset);
       image(bgImg, -bgOffset, 0, dims.w, dims.h);
     } else {
+      // Square images (512x512) - scale to fit width
       let scale = max(width / bgImg.width, groundY / bgImg.height);
       let scaledW = bgImg.width * scale;
       let scaledH = bgImg.height * scale;
@@ -302,11 +410,13 @@ function drawBackground(theme, bgImg) {
   }
 }
 
+/**
+ * DRAWS MENU BACKGROUND (screen.png)
+ * Used for main menu, level select, and rules screens
+ */
 function drawBackgroundScreen() {
   if (bgImages.screen && bgImages.screen.width > 0) {
-    let scaleW = width / bgImages.screen.width;
-    let scaleH = height / bgImages.screen.height;
-    let scale = max(scaleW, scaleH);
+    let scale = max(width / bgImages.screen.width, height / bgImages.screen.height);
     let scaledW = bgImages.screen.width * scale;
     let scaledH = bgImages.screen.height * scale;
     let x = (width - scaledW) / 2;
@@ -319,6 +429,14 @@ function drawBackgroundScreen() {
 
 function getCurrentTheme() { return themes[(level - 1) % themes.length]; }
 
+// =====================================
+// INTRO VIDEO SCREEN
+// =====================================
+/**
+ * Plays intro video with story text overlay
+ * Automatically transitions to menu when video ends
+ * Press any key to skip
+ */
 function drawIntro() {
   background(0);
   
@@ -346,6 +464,7 @@ function drawIntro() {
   
   textAlign(CENTER);
   
+  // Title
   textSize(32);
   drawingContext.shadowBlur = 12;
   drawingContext.shadowColor = "rgba(255, 215, 0, 0.8)";
@@ -355,6 +474,7 @@ function drawIntro() {
   drawingContext.shadowBlur = 8;
   drawingContext.shadowColor = "rgba(0,0,0,0.5)";
   
+  // Story text
   textSize(20);
   fill(255, 255, 220);
   
@@ -381,6 +501,7 @@ function drawIntro() {
   
   drawingContext.shadowBlur = 0;
   
+  // Auto-transition when video ends
   if (introVideo.time() >= introVideo.duration() - 0.1 && introVideo.duration() > 0) {
     introVideo.stop();
     gameState = "menu";
@@ -392,6 +513,14 @@ function drawIntro() {
   }
 }
 
+// =====================================
+// PAUSE MENU
+// =====================================
+/**
+ * Draws the in-game pause menu overlay
+ * Options: Resume, Restart, Go to Menu
+ * Navigation: Arrow keys, Selection: Enter
+ */
 function drawPauseMenu() {
   fill(0, 0, 0, 200);
   rect(0, 0, width, height);
@@ -434,6 +563,13 @@ function drawPauseMenu() {
   text("↑ ↓ : Navigate | ENTER : Select", width/2, menuY + menuH - 40);
 }
 
+// =====================================
+// RULES SCREEN
+// =====================================
+/**
+ * Displays game rules with bobbing animation
+ * Shows instructions for gameplay mechanics
+ */
 function drawRulesScreen() {
   drawBackgroundScreen();
   
@@ -467,13 +603,13 @@ function drawRulesScreen() {
   fill(50, 30, 20);
   textStyle(BOLD);
   text("🎓 Collect 100 ECTS per semester to graduate!", rulesX + 30, rulesY + 110);
-  text("💰 Coloured balls (5-10) → +5 ECTS each", rulesX + 30, rulesY + 160);
+  text("📝 Exam papers with high grades → +5 ECTS each", rulesX + 30, rulesY + 160);
   text("⚔️ Every 2 enemies defeated → +1 life", rulesX + 30, rulesY + 210);
   text("😈 Purple devil (4.9) → UNKILLABLE! Avoid it!", rulesX + 30, rulesY + 260);
   text("🌋 Lava pools → instant life loss", rulesX + 30, rulesY + 310);
   text("🚀 SHIFT = Dash (speed boost)", rulesX + 30, rulesY + 360);
   text("🦘 SPACE = Double jump", rulesX + 30, rulesY + 410);
-  text("🎮 Press 1 or ESC for in-game menu", rulesX + 30, rulesY + 460);
+  text("🎮 Press ESC for in-game menu", rulesX + 30, rulesY + 460);
   textStyle(NORMAL);
   
   let backX = width/2 - 80;
@@ -498,12 +634,21 @@ function drawRulesScreen() {
   }
 }
 
+// =====================================
+// LEVEL SELECT SCREEN
+// =====================================
+/**
+ * Displays 8 semester buttons (4x2 grid)
+ * Locked semesters appear darker
+ * Click to start selected semester
+ */
 function drawLevelSelect() {
   drawBackgroundScreen();
   
   fill(0, 0, 0, 180);
   rect(0, 0, width, height);
   
+  // Star particle effect
   for (let i = 0; i < 100; i++) {
     fill(255, 255, 200, random(30, 100));
     noStroke();
@@ -542,6 +687,7 @@ function drawLevelSelect() {
     rect(x + 5, y + 5, buttonWidth, buttonHeight, 12);
     
     if (!isUnlocked) {
+      // Locked semester - darkened appearance
       fill(70, 50, 50);
       rect(x, y, buttonWidth, buttonHeight, 12);
       
@@ -574,6 +720,7 @@ function drawLevelSelect() {
       text(`Semester ${i+1} - ${themes[i].name}`, x + buttonWidth/2, y - 10);
       drawingContext.shadowBlur = 0;
     } else {
+      // Unlocked semester - normal appearance
       fill(120, 70, 50);
       rect(x, y, buttonWidth, buttonHeight, 12);
       
@@ -604,6 +751,7 @@ function drawLevelSelect() {
       text(`Semester ${i+1} - ${themes[i].name}`, x + buttonWidth/2, y - 10);
       drawingContext.shadowBlur = 0;
       
+      // Hover effect
       let mouseOver = (mouseX > x && mouseX < x + buttonWidth && mouseY > y && mouseY < y + buttonHeight);
       if (mouseOver) {
         stroke(255, 220, 100);
@@ -624,6 +772,7 @@ function drawLevelSelect() {
     }
   }
   
+  // Back button
   let backX = width/2 - 100;
   let backY = height - 80;
   
@@ -650,6 +799,13 @@ function drawLevelSelect() {
   }
 }
 
+// =====================================
+// MAIN MENU
+// =====================================
+/**
+ * Main menu screen with wobbling title
+ * Options: Select Semester, Rules
+ */
 function drawStartMenu() {
   drawBackgroundScreen();
   
@@ -679,6 +835,7 @@ function drawStartMenu() {
   fill(255, 240, 200);
   text(typedSubtitle, width/2, 300);
   
+  // Select Semester button
   let btnW = 380;
   let btnH = 65;
   let btnX = width/2 - btnW/2;
@@ -703,6 +860,7 @@ function drawStartMenu() {
     });
   }
   
+  // Rules button
   let rulesBtnW = 200;
   let rulesBtnH = 50;
   let rulesBtnX = width/2 - rulesBtnW/2;
@@ -733,6 +891,9 @@ function drawStartMenu() {
   }
 }
 
+// =====================================
+// GAME OVER SCREEN
+// =====================================
 function drawGameOverScreen() {
   fill(0, 0, 0, 200);
   rect(0, 0, width, height);
@@ -758,6 +919,14 @@ function drawGameOverScreen() {
   }
 }
 
+// =====================================
+// LEVEL COMPLETE SCREEN
+// =====================================
+/**
+ * Shows between semesters with mid-levels.png background
+ * Press ENTER to proceed to next semester
+ * Press ESC to return to level select
+ */
 function drawLevelCompleteScreen() {
   if (bgImages.midLevels && bgImages.midLevels.width > 0) {
     let scaleW = width / bgImages.midLevels.width;
@@ -800,6 +969,14 @@ function drawLevelCompleteScreen() {
   }
 }
 
+// =====================================
+// END SCREEN (GRADUATION)
+// =====================================
+/**
+ * Shows when all 8 semesters are completed
+ * Plays yoohoo sound and shows end.png
+ * Automatically returns to menu after sound duration
+ */
 function showEndScreen() {
   if (!endScreenActive) {
     endScreenActive = true;
@@ -854,6 +1031,19 @@ function showEndScreen() {
   }
 }
 
+// =====================================
+// CURSOR MANAGEMENT
+// =====================================
+function hideCursor() { cursor(HIDDEN); }
+function showCursor() { cursor(ARROW); }
+
+// =====================================
+// MAIN DRAW LOOP
+// =====================================
+/**
+ * Main game loop - called every frame
+ * Routes to appropriate screen based on gameState
+ */
 function draw() {
   if (gameState === "intro") {
     drawIntro();
@@ -897,10 +1087,12 @@ function draw() {
       return;
     }
     
+    // Check for level completion
     if (ects >= 100 && !levelComplete && gameStarted) {
       levelComplete = true;
       stopMusic();
       
+      // Unlock next semester
       if (level < 8 && !unlockedLevels[level]) {
         unlockedLevels[level] = true;
         console.log("🔓 Unlocked Semester " + (level + 1));
@@ -918,6 +1110,7 @@ function draw() {
       return;
     }
     
+    // GAMEPLAY RENDERING
     push();
     translate(random(-shake, shake), random(-shake, shake));
     shake *= 0.92;
@@ -925,6 +1118,7 @@ function draw() {
     let theme = getCurrentTheme();
     drawBackground(theme, bgImages[theme.bgKey]);
     
+    // Weather effects
     if (theme.bgKey === "rain") {
       stroke(180, 200, 255, 150);
       for (let r of rain) {
@@ -938,11 +1132,15 @@ function draw() {
       noStroke();
     }
     
-    if (player.x - worldOffset > generatedUntil - 3000) generateChunk(generatedUntil);
+    // Dynamic world generation
+    if (player.x - worldOffset > generatedUntil - 3000) {
+      generateChunk(generatedUntil);
+    }
     
     updateWorld();
     updatePlayer();
     
+    // Draw ground
     fill(theme.ground[0], theme.ground[1], theme.ground[2]);
     rect(0, groundY, width, height - groundY + 10);
     fill(theme.grass[0], theme.grass[1], theme.grass[2]);
@@ -961,6 +1159,7 @@ function draw() {
     
     drawWorld();
     
+    // Particle effects
     for (let p of particles) {
       p.update();
       p.draw();
@@ -972,11 +1171,6 @@ function draw() {
     drawPlayer();
     drawUI();
     
-    fill(255, 255, 255, 100);
-    textSize(14);
-    textAlign(RIGHT);
-    text("Press 1 or ESC for menu", width - 20, 90);
-    
     pop();
     
     if (fadeTransition || fadeAlpha > 0) {
@@ -986,6 +1180,13 @@ function draw() {
   }
 }
 
+// =====================================
+// LEVEL INITIALIZATION
+// =====================================
+/**
+ * Resets all game variables for a new semester
+ * Called when starting a level or restarting
+ */
 function initLevel() {
   console.log("📚 Starting SEMESTER " + level + ": " + getCurrentTheme().name);
   gameStarted = true;
@@ -1017,6 +1218,9 @@ function initLevel() {
   playLevelMusic();
 }
 
+/**
+ * Advances to next semester or triggers graduation
+ */
 function nextLevel() {
   level++;
   if (level > 8) {
@@ -1027,6 +1231,9 @@ function nextLevel() {
   initLevel();
 }
 
+/**
+ * Handles player death/respawn
+ */
 function loseLife() {
   lives--;
   shake = 18;
@@ -1039,7 +1246,9 @@ function loseLife() {
   
   createDust(player.x + player.w/2, player.y + player.h);
   
-  for (let i = 0; i < 15; i++) particles.push(new Particle(player.x + 40, player.y + 50, color(255, 0, 0), 8, 50));
+  for (let i = 0; i < 15; i++) {
+    particles.push(new Particle(player.x + 40, player.y + 50, color(255, 0, 0), 8, 50));
+  }
   if (lives <= 0) {
     playGameOverSound();
     stopMusic();
@@ -1048,9 +1257,25 @@ function loseLife() {
 
 function addLife() {
   if (lives < maxLives) lives++;
-  for (let i = 0; i < 15; i++) particles.push(new Particle(player.x + 40, player.y + 50, color(255, 100, 200), 8, 50));
+  for (let i = 0; i < 15; i++) {
+    particles.push(new Particle(player.x + 40, player.y + 50, color(255, 100, 200), 8, 50));
+  }
 }
 
+// =====================================
+// INPUT HANDLING
+// =====================================
+/**
+ * Handles all keyboard input:
+ * - ENTER: Start game / Next level
+ * - 1 or ESC: Pause menu toggle
+ * - Arrow keys: Navigate pause menu
+ * - Space: Jump (double jump)
+ * - Shift: Dash (speed boost)
+ * - M: Toggle sound
+ * - Arrow Up/Down: Volume control
+ * - R: Restart (on game over)
+ */
 function keyPressed() {
   enableAudio();
   
@@ -1126,7 +1351,9 @@ function keyPressed() {
   if (key === ' ' && jumpsLeft > 0 && !levelComplete && lives > 0 && gameStarted && gameState === "game" && !pauseMenuActive) {
     player.dy = jumpPower;
     jumpsLeft--;
-    for (let i = 0; i < 8; i++) particles.push(new Particle(player.x + 30, player.y + player.h, color(255, 255, 255), 5, 40));
+    for (let i = 0; i < 8; i++) {
+      particles.push(new Particle(player.x + 30, player.y + player.h, color(255, 255, 255), 5, 40));
+    }
   }
   
   if (keyCode === SHIFT && !levelComplete && lives > 0 && gameStarted && gameState === "game" && !pauseMenuActive) {
@@ -1134,7 +1361,9 @@ function keyPressed() {
     setTimeout(() => {
       if (player) player.speed = 5 + (level - 1) * 0.25;
     }, 280);
-    for (let i = 0; i < 12; i++) particles.push(new Particle(player.x + 40, player.y + 60, color(0, 255, 255), 6, 30));
+    for (let i = 0; i < 12; i++) {
+      particles.push(new Particle(player.x + 40, player.y + 60, color(0, 255, 255), 6, 30));
+    }
   }
   
   if (key === 'm' || key === 'M') {

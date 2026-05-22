@@ -265,8 +265,9 @@ function setup() {
   
   generateChunk(0);
   
-  introVideo.loop();
   introVideo.volume(0.5);
+  introVideo.loop();
+  
   
   // Typing effect intervals
   setInterval(() => {

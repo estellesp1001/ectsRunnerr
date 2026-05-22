@@ -265,7 +265,7 @@ function setup() {
   
   generateChunk(0);
   
-  introVideo.volume(0.5);
+  introVideo.volume(0.0);
   introVideo.loop();
   
   
